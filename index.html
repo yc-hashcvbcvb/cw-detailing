@@ -144,18 +144,17 @@ body.modal-open{overflow:hidden}
 const SUPABASE_URL='https://qgrkhuekmykugtqcemhv.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY='sb_publishable_bqfxu7BbSeKKPjcojsz4mg_aVAGPlEN';
 async function saveBookingToSupabase(booking){
-  const res=await fetch(SUPABASE_URL+'/rest/v1/bookings',{
+  const res=await fetch(SUPABASE_URL+'/rest/v1/rpc/create_booking',{
     method:'POST',
     headers:{
       'apikey':SUPABASE_PUBLISHABLE_KEY,
-      'Content-Type':'application/json',
-      'Prefer':'return=representation'
+      'Content-Type':'application/json'
     },
     body:JSON.stringify(booking)
   });
   if(!res.ok){
     let msg='Nie udało się zapisać rezerwacji w bazie.';
-    try{const j=await res.json(); if(j.message) msg+= ' '+j.message; else if(j.error) msg+=' '+j.error;}catch(e){}
+    try{const j=await res.json(); if(j.message) msg+=' '+j.message; else if(j.error) msg+=' '+j.error; else if(j.hint) msg+=' '+j.hint;}catch(e){}
     throw new Error(msg);
   }
   return res.json();
@@ -174,20 +173,19 @@ function summary(){let discount=utility==='Woda z posesji + prąd (-20%)'?Math.r
 document.getElementById('next').onclick=()=>{if(step===0&&!service)return alert('Wybierz usługę.');if(step===1&&!selectedDate)return alert('Wybierz dzień.');if(step===2&&!time)return alert('Wybierz godzinę.');if(step===3&&(!document.getElementById('first').value||!document.getElementById('last').value||!document.getElementById('phone').value))return alert('Uzupełnij dane kontaktowe.');if(step===4&&!dirt)return alert('Wybierz stan samochodu.');if(step===5&&!size)return alert('Wybierz wielkość samochodu.');if(step===6&&!utility)return alert('Wybierz opcję wody i prądu.');if(step===7&&(!document.getElementById('address').value||!document.getElementById('city').value||!document.getElementById('postal').value))return alert('Podaj miejsce wykonania usługi.');if(step<forms.length-1){step++;if(step===2)times();if(step===8)summary();render()}else{let discount=utility==='Woda z posesji + prąd (-20%)'?Math.round(service.p*.20):0;let bookingId='CW-'+Date.now().toString().slice(-7);let d={typ:'NOWA REZERWACJA',numer_rezerwacji:bookingId,usluga:service.name,data:selectedDate,godzina:time,imie:document.getElementById('first').value,nazwisko:document.getElementById('last').value,telefon:document.getElementById('phone').value,wielkosc:size,stan:dirt,'woda/prad':utility,adres:document.getElementById('address').value,miasto:document.getElementById('city').value,kod_pocztowy:document.getElementById('postal').value,cena_orientacyjna:(service.p-discount)+' zl'};let btn=document.getElementById('next');btn.disabled=true;btn.textContent='WYSYŁANIE...';Promise.all([
   fetch('https://formspree.io/f/mqpagwzo',{method:'POST',headers:{'Accept':'application/json','Content-Type':'application/json'},body:JSON.stringify(d)}).then(async r=>{if(!r.ok){let j=await r.json().catch(()=>({}));throw new Error(j.error||'Nie udało się wysłać powiadomienia e-mail.')}}),
   saveBookingToSupabase({
-    service:service.name,
-    booking_date:selectedDate,
-    booking_time:time,
-    first_name:document.getElementById('first').value.trim(),
-    last_name:document.getElementById('last').value.trim(),
-    phone:document.getElementById('phone').value.trim(),
-    car_size:size,
-    car_condition:dirt,
-    water_power:utility,
-    address:document.getElementById('address').value.trim(),
-    postal_code:document.getElementById('postal').value.trim(),
-    city:document.getElementById('city').value.trim(),
-    estimated_price:(service.p-discount)+' zł',
-    status:'confirmed'
+    p_service:service.name,
+    p_booking_date:selectedDate,
+    p_booking_time:time,
+    p_first_name:document.getElementById('first').value.trim(),
+    p_last_name:document.getElementById('last').value.trim(),
+    p_phone:document.getElementById('phone').value.trim(),
+    p_car_size:size,
+    p_car_condition:dirt,
+    p_water_power:utility,
+    p_address:document.getElementById('address').value.trim(),
+    p_postal_code:document.getElementById('postal').value.trim(),
+    p_city:document.getElementById('city').value.trim(),
+    p_estimated_price:(service.p-discount)+' zł'
   })
 ]).then(()=>{let saved=JSON.parse(localStorage.getItem('cwBookings')||'[]');saved.push({id:bookingId,service:service.name,date:selectedDate,time:time,name:d.imie+' '+d.nazwisko,phone:d.telefon,address:d.adres,city:d.miasto,postal:d.kod_pocztowy,size:size,dirt:dirt});localStorage.setItem('cwBookings',JSON.stringify(saved));document.querySelector('.booking').innerHTML='<div class="success-card"><div class="success-icon">✓</div><div class="kicker">REZERWACJA '+bookingId+'</div><h3 style="font-size:34px;margin:14px 0">DZIĘKUJEMY ZA REZERWACJĘ.</h3><p class="info">Termin został wysłany. Aby przełożyć lub odwołać wizytę, skorzystaj z <b style="color:#fff">MOJE TERMINY</b> albo zadzwoń do nas. Ostateczny termin potwierdzimy telefonicznie.</p><button class="btn" type="button" onclick="closeBooking()">ZAMKNIJ</button></div>'}).catch(err=>{alert(err.message);btn.disabled=false;btn.textContent='WYŚLIJ REZERWACJĘ →'})}};document.getElementById('prev').onclick=()=>{if(step){step--;render();if(step===2)times()}};document.querySelectorAll('.qhead').forEach(x=>x.onclick=()=>x.parentElement.classList.toggle('open'));
 const serviceInfo={wash:{k:'MYCIE ZEWNĘTRZNE',t:'Czyste z zewnątrz, bez kombinowania.',d:'Podstawowe mycie zewnętrzne samochodu: przygotowanie, dokładne umycie powierzchni i podstawowe osuszenie. Dobre rozwiązanie, gdy auto potrzebuje po prostu świeżego wyglądu.'},interior:{k:'CZYSZCZENIE WNĘTRZA',t:'Porządek tam, gdzie spędzasz najwięcej czasu.',d:'Podstawowe czyszczenie wnętrza: odkurzanie, oczyszczanie najważniejszych powierzchni i uporządkowanie kabiny. Zakres dopasowujemy do stanu samochodu.'},full:{k:'FULL CLEAN',t:'Wnętrze + zewnętrze w jednym terminie.',d:'Połączenie mycia zewnętrznego i czyszczenia wnętrza. To opcja dla auta, które potrzebuje odświeżenia całości, a nie tylko jednej części.'},deep:{k:'DEEP CLEAN',t:'Dokładniejsze czyszczenie wnętrza.',d:'Rozszerzone czyszczenie wnętrza dla samochodu wymagającego większej uwagi. Zakres ustalamy przed rozpoczęciem pracy, zależnie od zabrudzeń i materiałów.'}};const detail=document.getElementById('serviceDetail');document.querySelectorAll('.service-card').forEach(card=>card.addEventListener('click',()=>{const info=serviceInfo[card.dataset.service];const was=card.classList.contains('active');document.querySelectorAll('.service-card').forEach(c=>c.classList.remove('active'));if(was){detail.classList.remove('open');return}card.classList.add('active');document.getElementById('detailKicker').textContent=info.k;document.getElementById('detailTitle').textContent=info.t;document.getElementById('detailText').textContent=info.d;detail.classList.add('open')}));let io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting)e.target.classList.add('show')}),{threshold:.12});document.querySelectorAll('.reveal').forEach(x=>io.observe(x));
